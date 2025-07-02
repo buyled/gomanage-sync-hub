@@ -10,6 +10,7 @@ import CustomerForm from "./pages/CustomerForm";
 import Products from "./pages/Products";
 import Orders from "./pages/Orders";
 import Sync from "./pages/Sync";
+import TestAPI from "./pages/TestAPI";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +29,7 @@ const App = () => (
             <Route path="/products" element={<Products />} />
             <Route path="/orders" element={<Orders />} />
             <Route path="/sync" element={<Sync />} />
+            <Route path="/test-api" element={<TestAPI />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
