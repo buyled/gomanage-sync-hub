@@ -6,8 +6,8 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
 }
 
-// Cache simple para sesiones (en producción usar Supabase)
-const sessionCache = new Map()
+// Cache global de sesiones mejorado
+const sessionCache = new Map<string, { jsessionid: string; timestamp: number }>()
 
 serve(async (req) => {
   // Manejar CORS preflight
@@ -25,7 +25,7 @@ serve(async (req) => {
 
     const GOMANAGE_URL = 'http://buyled.clonico.es:8181'
     
-    console.log(`🔄 Gomanage Proxy - Action: ${action}, Endpoint: ${endpoint}`)
+    console.log(`🔄 Gomanage Proxy - Action: ${action}, SessionId: ${sessionId}`)
 
     // 🔐 LOGIN - Autenticación con Gomanage
     if (action === 'login') {
@@ -57,14 +57,14 @@ serve(async (req) => {
         const isLoginSuccess = (loginResponse.status === 302 || loginResponse.status === 200) && jsessionid
 
         if (isLoginSuccess) {
-          // Guardar sesión en cache con el username como key
+          // Guardar sesión en cache
           sessionCache.set(username, {
             jsessionid: jsessionid,
             timestamp: Date.now()
           })
           
-          console.log(`✅ Login exitoso para ${username}, guardado en cache`)
-          console.log(`🔍 Cache actual:`, Array.from(sessionCache.keys()))
+          console.log(`✅ Login exitoso para ${username}`)
+          console.log(`💾 Sesión guardada. Cache size: ${sessionCache.size}`)
           
           return new Response(JSON.stringify({ 
             success: true, 
@@ -100,12 +100,23 @@ serve(async (req) => {
 
     // 🔄 PROXY - Reenviar peticiones autenticadas
     if (action === 'proxy') {
-      console.log(`🔍 Proxy request - sessionId recibido: ${sessionId}`)
-      console.log(`🔍 Sessions en cache:`, Array.from(sessionCache.keys()))
-      console.log(`🔍 ¿Existe sessionId en cache?`, sessionCache.has(sessionId))
+      console.log(`🔍 Proxy - SessionId recibido: ${sessionId}`)
+      console.log(`💾 Sessions en cache: ${Array.from(sessionCache.keys())}`)
       
-      if (!sessionId || !sessionCache.has(sessionId)) {
-        console.log(`❌ Sesión inválida: ${sessionId}`)
+      if (!sessionId) {
+        console.log(`❌ No se proporcionó sessionId`)
+        return new Response(JSON.stringify({ 
+          success: false,
+          error: 'Se requiere sessionId' 
+        }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+
+      if (!sessionCache.has(sessionId)) {
+        console.log(`❌ SessionId ${sessionId} no encontrado en cache`)
+        console.log(`💾 Cache actual contiene: ${Array.from(sessionCache.keys())}`)
         return new Response(JSON.stringify({ 
           success: false,
           error: 'Sesión no válida o expirada. Haz login primero.' 
@@ -115,7 +126,7 @@ serve(async (req) => {
         })
       }
 
-      const sessionData = sessionCache.get(sessionId)
+      const sessionData = sessionCache.get(sessionId)!
       const jsessionid = sessionData.jsessionid
       const targetUrl = `${GOMANAGE_URL}${endpoint || '/gomanage'}`
 
@@ -147,6 +158,7 @@ serve(async (req) => {
         }
 
         console.log(`✅ Proxy response: ${gomanageResponse.status}`)
+        console.log(`📋 Data preview:`, JSON.stringify(jsonData).substring(0, 200))
 
         return new Response(JSON.stringify({
           success: gomanageResponse.ok,
@@ -181,6 +193,7 @@ serve(async (req) => {
           gomanageStatus: healthCheck.ok ? 'online' : 'offline',
           gomanageUrl: GOMANAGE_URL,
           activeSessions: sessionCache.size,
+          sessionKeys: Array.from(sessionCache.keys()),
           timestamp: new Date().toISOString()
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
