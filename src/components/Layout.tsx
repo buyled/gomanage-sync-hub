@@ -10,6 +10,7 @@ const navigation = [
   { name: 'Productos', href: '/products', icon: '📦' },
   { name: 'Pedidos', href: '/orders', icon: '📋' },
   { name: 'Sincronización', href: '/sync', icon: '🔄' },
+  { name: 'Test API', href: '/test-api', icon: '🧪' },
   { name: 'Configuración', href: '/settings', icon: '⚙️' },
 ];
 
