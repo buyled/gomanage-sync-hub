@@ -133,8 +133,8 @@ serve(async (req) => {
       const jsessionid = sessionData.jsessionid
 
       // Para clientes, usar GraphQL que sabemos que funciona
-      if (endpoint && endpoint.includes('customers')) {
-        console.log(`📊 Usando GraphQL para clientes (confirmado que funciona)`)
+      if (endpoint && endpoint.includes('apitmt-customers/List')) {
+        console.log(`📊 Detectado request de clientes REST, usando GraphQL en su lugar`)
         
         const graphqlQuery = {
           query: `

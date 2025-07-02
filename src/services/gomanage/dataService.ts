@@ -48,7 +48,7 @@ export class GomanageDataService {
   async getCustomers(): Promise<Customer[]> {
     try {
       console.log('🔍 Iniciando obtención de clientes con GraphQL confirmado...');
-      const data = await this.connectionService.proxyRequest('/gomanage/web/data/graphql/customers');
+      const data = await this.connectionService.proxyRequest('/gomanage/web/data/apitmt-customers/List');
       console.log('📋 Respuesta completa GraphQL:', data);
       
       // Procesar respuesta GraphQL que sabemos que funciona
