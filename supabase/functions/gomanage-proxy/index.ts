@@ -39,6 +39,7 @@ serve(async (req) => {
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
             'Accept': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
           },
           body: loginData,
           redirect: 'manual'
@@ -65,6 +66,7 @@ serve(async (req) => {
           
           console.log(`✅ Login exitoso para ${username}`)
           console.log(`💾 Sesión guardada. Cache size: ${sessionCache.size}`)
+          console.log(`🔑 JSESSIONID obtenido: ${jsessionid}`)
           
           return new Response(JSON.stringify({ 
             success: true, 
@@ -76,6 +78,8 @@ serve(async (req) => {
           })
         } else {
           console.log(`❌ Login fallido para ${username}`)
+          console.log(`📄 Status: ${loginResponse.status}`)
+          console.log(`🍪 Set-Cookie: ${setCookieHeaders}`)
           
           return new Response(JSON.stringify({ 
             success: false,
@@ -98,7 +102,7 @@ serve(async (req) => {
       }
     }
 
-    // 🔄 PROXY - Reenviar peticiones autenticadas
+    // 🔄 PROXY - Reenviar peticiones autenticadas con soporte para parámetros
     if (action === 'proxy') {
       console.log(`🔍 Proxy - SessionId recibido: ${sessionId}`)
       console.log(`💾 Sessions en cache: ${Array.from(sessionCache.keys())}`)
@@ -128,7 +132,19 @@ serve(async (req) => {
 
       const sessionData = sessionCache.get(sessionId)!
       const jsessionid = sessionData.jsessionid
-      const targetUrl = `${GOMANAGE_URL}${endpoint || '/gomanage'}`
+      let targetUrl = `${GOMANAGE_URL}${endpoint || '/gomanage'}`
+
+      // Agregar parámetros para obtener TODOS los registros
+      if (endpoint && endpoint.includes('apitmt-customers/List')) {
+        const urlParams = new URLSearchParams({
+          start: '0',
+          limit: '2000', // Obtener todos los registros (más que los 1,478 conocidos)
+          sort: 'id',
+          dir: 'ASC'
+        })
+        targetUrl += `?${urlParams.toString()}`
+        console.log(`📋 Solicitando TODOS los clientes con parámetros: start=0, limit=2000`)
+      }
 
       console.log(`📡 Proxy request a: ${targetUrl}`)
       console.log(`🔑 Usando JSESSIONID: ${jsessionid}`)
@@ -138,9 +154,9 @@ serve(async (req) => {
           method: req.method,
           headers: {
             'Cookie': jsessionid,
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'User-Agent': 'Lovable-Gomanage-Proxy/1.0'
+            'Accept': 'application/json, text/javascript, */*; q=0.01',
+            'X-Requested-With': 'XMLHttpRequest',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
           }
         })
 
@@ -158,7 +174,14 @@ serve(async (req) => {
         }
 
         console.log(`✅ Proxy response: ${gomanageResponse.status}`)
-        console.log(`📋 Data preview:`, JSON.stringify(jsonData).substring(0, 200))
+        if (jsonData && jsonData.data && Array.isArray(jsonData.data)) {
+          console.log(`📋 🎉 ÉXITO: ${jsonData.data.length} clientes obtenidos`)
+          console.log(`📊 Total count reportado: ${jsonData.totalCount || 'no disponible'}`)
+          if (jsonData.data.length > 0) {
+            console.log(`📝 Primer cliente:`, JSON.stringify(jsonData.data[0]).substring(0, 200))
+          }
+        }
+        console.log(`📋 Data preview:`, JSON.stringify(jsonData).substring(0, 300))
 
         return new Response(JSON.stringify({
           success: gomanageResponse.ok,
