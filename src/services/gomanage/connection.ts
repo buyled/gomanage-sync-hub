@@ -13,6 +13,7 @@ export class GomanageConnectionService {
   // 🟢 Test de conexión usando Edge Function
   async testConnection(): Promise<ConnectionResult> {
     console.log('🔍 Probando conexión a través del proxy:', this.connection.proxyUrl);
+    console.log('🔍 URL completa:', `${this.connection.proxyUrl}?action=status`);
     
     try {
       const response = await fetch(`${this.connection.proxyUrl}?action=status`, {
@@ -52,6 +53,7 @@ export class GomanageConnectionService {
   // 🔐 Login usando Edge Function como proxy
   async login(username: string = 'distri', password: string = 'GOtmt%'): Promise<LoginResult> {
     console.log('🔑 Intentando login a través del proxy:', username);
+    console.log('🔑 URL completa:', `${this.connection.proxyUrl}?action=login&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`);
     
     try {
       const response = await fetch(`${this.connection.proxyUrl}?action=login&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`, {
@@ -97,6 +99,7 @@ export class GomanageConnectionService {
   // 📊 Hacer petición a través del proxy
   async proxyRequest(endpoint: string): Promise<any> {
     console.log('📊 Haciendo petición proxy a:', endpoint);
+    console.log('📊 Session ID:', this.connection.sessionId);
     
     try {
       if (!this.connection.sessionId) {
