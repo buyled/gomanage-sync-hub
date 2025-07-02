@@ -99,6 +99,10 @@ serve(async (req) => {
 
     // 🔄 PROXY - Reenviar peticiones autenticadas
     if (action === 'proxy') {
+      console.log(`🔍 Proxy request - sessionId recibido: ${sessionId}`)
+      console.log(`🔍 Sessions en cache:`, Array.from(sessionCache.keys()))
+      console.log(`🔍 ¿Existe sessionId en cache?`, sessionCache.has(sessionId))
+      
       if (!sessionId || !sessionCache.has(sessionId)) {
         console.log(`❌ Sesión inválida: ${sessionId}`)
         return new Response(JSON.stringify({ 
@@ -115,6 +119,7 @@ serve(async (req) => {
       const targetUrl = `${GOMANAGE_URL}${endpoint || '/gomanage'}`
 
       console.log(`📡 Proxy request a: ${targetUrl}`)
+      console.log(`🔑 Usando JSESSIONID: ${jsessionid}`)
 
       try {
         const gomanageResponse = await fetch(targetUrl, {
