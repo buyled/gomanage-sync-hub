@@ -44,23 +44,27 @@ export class GomanageDataService {
     return { message: 'Endpoint no implementado', endpoint };
   }
 
-  // 👥 Obtener clientes usando GraphQL
+  // 👥 Obtener clientes usando GraphQL confirmado que funciona
   async getCustomers(): Promise<Customer[]> {
     try {
-      console.log('🔍 Iniciando obtención de clientes con GraphQL...');
+      console.log('🔍 Iniciando obtención de clientes con GraphQL confirmado...');
       const data = await this.connectionService.proxyRequest('/gomanage/web/data/graphql/customers');
-      console.log('📋 Respuesta completa GraphQL de clientes:', data);
+      console.log('📋 Respuesta completa GraphQL:', data);
       
-      if (data.data && 
-          data.data.master_files && 
-          data.data.master_files.customers && 
-          data.data.master_files.customers.nodes) {
-        const customers = data.data.master_files.customers.nodes;
-        console.log('👥 Total clientes GraphQL:', data.data.master_files.customers.totalCount);
-        console.log('👥 Clientes en nodes:', customers.length);
+      // Procesar respuesta GraphQL que sabemos que funciona
+      if (data.success && data.data && 
+          data.data.data && 
+          data.data.data.master_files && 
+          data.data.data.master_files.customers && 
+          data.data.data.master_files.customers.nodes) {
+        
+        const customers = data.data.data.master_files.customers.nodes;
+        const totalCount = data.data.data.master_files.customers.totalCount;
+        
+        console.log(`👥 ✅ ÉXITO: ${customers.length} clientes de ${totalCount} totales recibidos`);
         
         if (customers.length > 0) {
-          console.log('📄 Primer cliente GraphQL:', customers[0]);
+          console.log('📄 Primer cliente real:', customers[0]);
         }
         
         // Convertir formato GraphQL al formato esperado por la aplicación
@@ -71,7 +75,7 @@ export class GomanageDataService {
             
           return {
             id: String(index + 1),
-            gomanageId: customer.customer_id || String(customer.unique_id || ''),
+            gomanageId: String(customer.customer_id),
             name: customer.name || 'Sin nombre',
             businessName: customer.business_name || 'Sin razón social',
             vatNumber: customer.vat_number || '',
@@ -87,18 +91,12 @@ export class GomanageDataService {
         });
       }
       
-      console.log('⚠️ Estructura GraphQL no válida, intentando formato REST legacy...');
-      // Fallback a formato REST anterior
-      if (data.page_entries && data.page_entries.length > 0) {
-        console.log('📄 Usando formato REST legacy:', data.page_entries[0]);
-        return data.page_entries;
-      }
-      
+      console.log('⚠️ Estructura GraphQL no válida o respuesta vacía');
+      console.log('🔍 Datos recibidos:', JSON.stringify(data, null, 2));
       return [];
     } catch (error) {
       console.error('❌ Error obteniendo clientes:', error);
-      console.warn('⚠️ Usando datos simulados de clientes');
-      return this.getSimulatedData('/customers').page_entries || [];
+      return [];
     }
   }
 

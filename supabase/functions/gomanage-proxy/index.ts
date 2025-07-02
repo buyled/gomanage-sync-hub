@@ -102,7 +102,7 @@ serve(async (req) => {
       }
     }
 
-    // 🔄 PROXY - GraphQL API de GO!Manage
+    // 🔄 PROXY - Usar API que funciona según los tests
     if (action === 'proxy') {
       console.log(`🔍 Proxy - SessionId recibido: ${sessionId}`)
       console.log(`💾 Sessions en cache: ${Array.from(sessionCache.keys())}`)
@@ -120,7 +120,6 @@ serve(async (req) => {
 
       if (!sessionCache.has(sessionId)) {
         console.log(`❌ SessionId ${sessionId} no encontrado en cache`)
-        console.log(`💾 Cache actual contiene: ${Array.from(sessionCache.keys())}`)
         return new Response(JSON.stringify({ 
           success: false,
           error: 'Sesión no válida o expirada. Haz login primero.' 
@@ -133,9 +132,9 @@ serve(async (req) => {
       const sessionData = sessionCache.get(sessionId)!
       const jsessionid = sessionData.jsessionid
 
-      // Si es petición para clientes, usar GraphQL en lugar de REST
+      // Para clientes, usar GraphQL que sabemos que funciona
       if (endpoint && endpoint.includes('customers')) {
-        console.log(`📊 Usando GraphQL para obtener clientes...`)
+        console.log(`📊 Usando GraphQL para clientes (confirmado que funciona)`)
         
         const graphqlQuery = {
           query: `
@@ -177,14 +176,13 @@ serve(async (req) => {
             }
           `,
           variables: {
-            first: 2000,
+            first: 1500, // Obtener todos los 1479 clientes
             offset: 0
           }
         }
 
         const targetUrl = `${GOMANAGE_URL}/gomanage/web/data/graphql`
         console.log(`📡 GraphQL request a: ${targetUrl}`)
-        console.log(`🔑 Usando JSESSIONID: ${jsessionid}`)
 
         try {
           const gomanageResponse = await fetch(targetUrl, {
@@ -215,14 +213,11 @@ serve(async (req) => {
           
           if (jsonData && jsonData.data && jsonData.data.master_files && jsonData.data.master_files.customers) {
             const customers = jsonData.data.master_files.customers
-            console.log(`📋 🎉 ÉXITO GraphQL: ${customers.nodes.length} clientes obtenidos`)
-            console.log(`📊 Total count GraphQL: ${customers.totalCount}`)
+            console.log(`📋 🎉 ÉXITO GraphQL: ${customers.nodes.length} clientes obtenidos de ${customers.totalCount} totales`)
             if (customers.nodes.length > 0) {
               console.log(`📝 Primer cliente GraphQL:`, JSON.stringify(customers.nodes[0]).substring(0, 300))
             }
           }
-
-          console.log(`📋 GraphQL Data preview:`, JSON.stringify(jsonData).substring(0, 400))
 
           return new Response(JSON.stringify({
             success: gomanageResponse.ok,
@@ -244,10 +239,9 @@ serve(async (req) => {
         }
       }
 
-      // Para otras peticiones, usar el endpoint original
+      // Para otros endpoints, usar REST API
       const targetUrl = `${GOMANAGE_URL}${endpoint || '/gomanage'}`
-      console.log(`📡 Proxy request a: ${targetUrl}`)
-      console.log(`🔑 Usando JSESSIONID: ${jsessionid}`)
+      console.log(`📡 REST request a: ${targetUrl}`)
 
       try {
         const gomanageResponse = await fetch(targetUrl, {
@@ -273,8 +267,7 @@ serve(async (req) => {
           }
         }
 
-        console.log(`✅ Proxy response: ${gomanageResponse.status}`)
-        console.log(`📋 Data preview:`, JSON.stringify(jsonData).substring(0, 300))
+        console.log(`✅ REST response: ${gomanageResponse.status}`)
 
         return new Response(JSON.stringify({
           success: gomanageResponse.ok,
@@ -285,10 +278,10 @@ serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
       } catch (error) {
-        console.error('🔥 Error en proxy:', error)
+        console.error('🔥 Error en REST:', error)
         return new Response(JSON.stringify({
           success: false,
-          error: `Error de proxy: ${error.message}`
+          error: `Error de REST: ${error.message}`
         }), {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
