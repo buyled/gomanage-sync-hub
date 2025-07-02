@@ -65,7 +65,7 @@ interface GomanageConnection {
 class GomanageApiService {
   private connection: GomanageConnection = {
     isConnected: false,
-    proxyUrl: `${window.location.origin}/functions/v1/gomanage-proxy`,
+    proxyUrl: 'http://buyled.clonico.es:8181',
     lastPing: null,
     sessionId: null
   };
@@ -75,25 +75,22 @@ class GomanageApiService {
     console.log('🔍 Probando conexión a:', this.connection.proxyUrl);
     
     try {
-      const response = await fetch(`${this.connection.proxyUrl}?action=status`, {
+      const response = await fetch(`${this.connection.proxyUrl}/gomanage`, {
         method: 'GET',
         headers: {
-          'Content-Type': 'application/json',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         }
       });
 
-      console.log('📡 Respuesta del proxy:', response.status, response.statusText);
+      console.log('📡 Respuesta de Gomanage:', response.status, response.statusText);
       
-      if (response.ok) {
-        const data = await response.json();
-        console.log('📄 Datos del proxy:', data);
-        
+      if (response.status === 200 || response.status === 302) {
         this.connection.isConnected = true;
         this.connection.lastPing = new Date();
         
         return { 
           connected: true, 
-          message: `Conectado a Gomanage (${data.gomanageStatus})`, 
+          message: `Conectado a Gomanage (${response.status})`, 
           url: this.connection.proxyUrl 
         };
       } else {
@@ -102,7 +99,6 @@ class GomanageApiService {
     } catch (error) {
       console.error('❌ Error de conexión real:', error);
       
-      // NO simular - mostrar error real
       this.connection.isConnected = false;
       return { 
         connected: false, 
@@ -112,44 +108,51 @@ class GomanageApiService {
     }
   }
 
-  // 🔐 Login REAL (sin simulación automática)
+  // 🔐 Login REAL usando API de Gomanage
   async login(username: string = 'distri', password: string = 'GOtmt%'): Promise<{ success: boolean; sessionId?: string; message: string }> {
     console.log('🔑 Intentando login real con:', username);
     
     try {
-      if (!this.connection.isConnected) {
-        const connResult = await this.testConnection();
-        if (!connResult.connected) {
-          throw new Error(`No se pudo conectar: ${connResult.message}`);
-        }
-      }
-
-      console.log('📡 Haciendo petición de login a:', this.connection.proxyUrl);
-
-      const response = await fetch(
-        `${this.connection.proxyUrl}?action=login&username=${username}&password=${encodeURIComponent(password)}`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          }
-        }
-      );
+      const loginData = `j_username=${encodeURIComponent(username)}&j_password=${encodeURIComponent(password)}`;
+      
+      const response = await fetch(`${this.connection.proxyUrl}/gomanage/static/auth/j_spring_security_check`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Accept': 'application/json',
+        },
+        body: loginData,
+        credentials: 'include'
+      });
 
       console.log('📄 Respuesta login:', response.status, response.statusText);
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log('📋 Datos de login:', data);
+      
+      // El login exitoso retorna código 302 o 200
+      if (response.status === 302 || response.status === 200) {
+        // Buscar cookies de sesión
+        const setCookieHeader = response.headers.get('set-cookie');
+        let jsessionid = null;
         
-        if (data.success) {
-          this.connection.sessionId = data.sessionId || username;
-          return { success: true, sessionId: this.connection.sessionId, message: 'Login exitoso en Gomanage' };
+        if (setCookieHeader) {
+          const sessionMatch = setCookieHeader.match(/JSESSIONID=([^;]+)/);
+          if (sessionMatch) {
+            jsessionid = sessionMatch[1];
+            this.connection.sessionId = jsessionid;
+          }
+        }
+        
+        if (jsessionid) {
+          console.log('✅ Login exitoso, JSESSIONID:', jsessionid);
+          return { 
+            success: true, 
+            sessionId: jsessionid, 
+            message: 'Login exitoso en Gomanage' 
+          };
         } else {
-          throw new Error(data.error || 'Credenciales rechazadas');
+          throw new Error('No se recibió JSESSIONID');
         }
       } else {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        throw new Error(`Credenciales rechazadas (${response.status})`);
       }
     } catch (error) {
       console.error('❌ Error de login real:', error);
@@ -161,7 +164,7 @@ class GomanageApiService {
     }
   }
 
-  // 📊 Obtener datos REALES (sin simulación automática)
+  // 📊 Obtener datos REALES usando API de Gomanage
   async getData(endpoint: string): Promise<any> {
     console.log('📊 Obteniendo datos de:', endpoint);
     
@@ -173,35 +176,31 @@ class GomanageApiService {
         }
       }
 
-      console.log('📡 Haciendo petición de datos a:', this.connection.proxyUrl);
+      const fullUrl = `${this.connection.proxyUrl}${endpoint}`;
+      console.log('📡 Haciendo petición a:', fullUrl);
 
-      const response = await fetch(
-        `${this.connection.proxyUrl}?action=proxy&sessionId=${this.connection.sessionId}&endpoint=${encodeURIComponent(endpoint)}`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          }
-        }
-      );
+      const response = await fetch(fullUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Cookie': `JSESSIONID=${this.connection.sessionId}`,
+          'User-Agent': 'Lovable-Gomanage-Client/1.0'
+        },
+        credentials: 'include'
+      });
 
       console.log('📄 Respuesta de datos:', response.status, response.statusText);
 
       if (response.ok) {
         const data = await response.json();
         console.log('📋 Datos recibidos:', data);
-        
-        if (data.success) {
-          return data.data || data;
-        } else {
-          throw new Error(data.error || 'Error en respuesta de API');
-        }
+        return data;
       } else {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
     } catch (error) {
       console.error(`❌ Error real en endpoint ${endpoint}:`, error);
-      throw error; // NO simular - lanzar error real
+      throw error;
     }
   }
 
