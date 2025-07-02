@@ -47,12 +47,19 @@ export class GomanageDataService {
   // 👥 Obtener clientes
   async getCustomers(): Promise<Customer[]> {
     try {
+      console.log('🔍 Iniciando obtención de clientes...');
       const data = await this.connectionService.proxyRequest('/gomanage/web/data/apitmt-customers/List');
-      console.log('👥 Clientes obtenidos:', data.page_entries?.length || 0);
+      console.log('📋 Respuesta completa de clientes:', data);
+      console.log('👥 Total clientes en respuesta:', data.total_entries);
+      console.log('👥 Clientes en page_entries:', data.page_entries?.length || 0);
+      
+      if (data.page_entries && data.page_entries.length > 0) {
+        console.log('📄 Primer cliente:', data.page_entries[0]);
+      }
+      
       return data.page_entries || [];
     } catch (error) {
       console.error('❌ Error obteniendo clientes:', error);
-      // Si falla, usar simulación temporal y notificar
       console.warn('⚠️ Usando datos simulados de clientes');
       return this.getSimulatedData('/customers').page_entries || [];
     }

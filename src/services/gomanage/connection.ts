@@ -123,6 +123,7 @@ export class GomanageConnectionService {
 
       if (response.ok) {
         const result = await response.json();
+        console.log('📋 Resultado del proxy:', result);
         if (result.success) {
           console.log('📋 Datos recibidos del proxy:', result.data);
           return result.data;
