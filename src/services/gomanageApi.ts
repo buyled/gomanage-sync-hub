@@ -65,7 +65,7 @@ interface GomanageConnection {
 class GomanageApiService {
   private connection: GomanageConnection = {
     isConnected: false,
-    proxyUrl: 'http://buyled.clonico.es:8181/gomanage/web/data',
+    proxyUrl: `${window.location.origin}/functions/v1/gomanage-proxy`,
     lastPing: null,
     sessionId: null
   };
