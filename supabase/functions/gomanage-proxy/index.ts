@@ -6,8 +6,19 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
 }
 
-// Cache global de sesiones mejorado
-const sessionCache = new Map<string, { jsessionid: string; timestamp: number }>()
+// Cache global de sesiones mejorado con TTL
+const sessionCache = new Map<string, { jsessionid: string; timestamp: number; expires: number }>()
+
+// Limpiar sesiones expiradas
+function cleanExpiredSessions() {
+  const now = Date.now()
+  for (const [key, session] of sessionCache.entries()) {
+    if (now > session.expires) {
+      sessionCache.delete(key)
+      console.log(`🧹 Sesión expirada eliminada: ${key}`)
+    }
+  }
+}
 
 serve(async (req) => {
   // Manejar CORS preflight
@@ -58,10 +69,15 @@ serve(async (req) => {
         const isLoginSuccess = (loginResponse.status === 302 || loginResponse.status === 200) && jsessionid
 
         if (isLoginSuccess) {
-          // Guardar sesión en cache
+          // Limpiar sesiones expiradas antes de agregar nueva
+          cleanExpiredSessions()
+          
+          // Guardar sesión en cache con TTL de 30 minutos
+          const now = Date.now()
           sessionCache.set(username, {
             jsessionid: jsessionid,
-            timestamp: Date.now()
+            timestamp: now,
+            expires: now + (30 * 60 * 1000) // 30 minutos
           })
           
           console.log(`✅ Login exitoso para ${username}`)
@@ -106,6 +122,11 @@ serve(async (req) => {
     if (action === 'proxy') {
       console.log(`🔍 Proxy - SessionId recibido: ${sessionId}`)
       console.log(`💾 Sessions en cache: ${Array.from(sessionCache.keys())}`)
+      console.log(`🕐 Timestamp actual: ${Date.now()}`)
+      
+      // Limpiar sesiones expiradas
+      cleanExpiredSessions()
+      console.log(`💾 Sessions después de limpieza: ${Array.from(sessionCache.keys())}`)
       
       if (!sessionId) {
         console.log(`❌ No se proporcionó sessionId`)
@@ -120,9 +141,12 @@ serve(async (req) => {
 
       if (!sessionCache.has(sessionId)) {
         console.log(`❌ SessionId ${sessionId} no encontrado en cache`)
+        console.log(`💾 Cache actual contiene: ${Array.from(sessionCache.keys())}`)
+        
         return new Response(JSON.stringify({ 
           success: false,
-          error: 'Sesión no válida o expirada. Haz login primero.' 
+          error: 'Sesión no válida o expirada. Haz login primero.',
+          needsReauth: true
         }), {
           status: 401,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -131,6 +155,9 @@ serve(async (req) => {
 
       const sessionData = sessionCache.get(sessionId)!
       const jsessionid = sessionData.jsessionid
+      console.log(`🔑 Usando JSESSIONID: ${jsessionid}`)
+      console.log(`⏰ Sesión creada: ${new Date(sessionData.timestamp).toISOString()}`)
+      console.log(`⏰ Sesión expira: ${new Date(sessionData.expires).toISOString()}`)
 
       // Para clientes, usar GraphQL que sabemos que funciona
       if (endpoint && endpoint.includes('apitmt-customers/List')) {

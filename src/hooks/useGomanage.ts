@@ -64,10 +64,13 @@ export function useGomanage(): UseGomanageReturn {
         const loginResult = await gomanageApi.login();
         
         if (loginResult.success) {
+          // Esperar un momento para que la sesión se propague
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
           updateConnectionStatus();
           toast({
             title: "Conexión exitosa",
-            description: connectionResult.message,
+            description: "Conectado a GO!Manage con datos actualizados",
           });
         } else {
           throw new Error('Error en login');
