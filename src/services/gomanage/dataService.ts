@@ -44,20 +44,57 @@ export class GomanageDataService {
     return { message: 'Endpoint no implementado', endpoint };
   }
 
-  // 👥 Obtener clientes
+  // 👥 Obtener clientes usando GraphQL
   async getCustomers(): Promise<Customer[]> {
     try {
-      console.log('🔍 Iniciando obtención de clientes...');
-      const data = await this.connectionService.proxyRequest('/gomanage/web/data/apitmt-customers/List');
-      console.log('📋 Respuesta completa de clientes:', data);
-      console.log('👥 Total clientes en respuesta:', data.total_entries);
-      console.log('👥 Clientes en page_entries:', data.page_entries?.length || 0);
+      console.log('🔍 Iniciando obtención de clientes con GraphQL...');
+      const data = await this.connectionService.proxyRequest('/gomanage/web/data/graphql/customers');
+      console.log('📋 Respuesta completa GraphQL de clientes:', data);
       
-      if (data.page_entries && data.page_entries.length > 0) {
-        console.log('📄 Primer cliente:', data.page_entries[0]);
+      if (data.data && 
+          data.data.master_files && 
+          data.data.master_files.customers && 
+          data.data.master_files.customers.nodes) {
+        const customers = data.data.master_files.customers.nodes;
+        console.log('👥 Total clientes GraphQL:', data.data.master_files.customers.totalCount);
+        console.log('👥 Clientes en nodes:', customers.length);
+        
+        if (customers.length > 0) {
+          console.log('📄 Primer cliente GraphQL:', customers[0]);
+        }
+        
+        // Convertir formato GraphQL al formato esperado por la aplicación
+        return customers.map((customer: any, index: number) => {
+          const branch = customer.customer_branches && customer.customer_branches.length > 0 
+            ? customer.customer_branches[0] 
+            : {};
+            
+          return {
+            id: String(index + 1),
+            gomanageId: customer.customer_id || String(customer.unique_id || ''),
+            name: customer.name || 'Sin nombre',
+            businessName: customer.business_name || 'Sin razón social',
+            vatNumber: customer.vat_number || '',
+            email: branch.email || '',
+            phone: branch.phone || '',
+            city: customer.city || '',
+            province: customer.province_id ? `Provincia ${customer.province_id}` : '',
+            syncStatus: 'synced' as const,
+            lastSync: 'hace 1 min',
+            totalOrders: 0,
+            totalAmount: 0
+          };
+        });
       }
       
-      return data.page_entries || [];
+      console.log('⚠️ Estructura GraphQL no válida, intentando formato REST legacy...');
+      // Fallback a formato REST anterior
+      if (data.page_entries && data.page_entries.length > 0) {
+        console.log('📄 Usando formato REST legacy:', data.page_entries[0]);
+        return data.page_entries;
+      }
+      
+      return [];
     } catch (error) {
       console.error('❌ Error obteniendo clientes:', error);
       console.warn('⚠️ Usando datos simulados de clientes');

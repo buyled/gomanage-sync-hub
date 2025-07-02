@@ -9,58 +9,11 @@ import SyncStatus from '@/components/SyncStatus';
 import { useGomanage } from '@/hooks/useGomanage';
 import type { Customer } from '@/services/gomanage';
 
-// Sample customers data (fallback) - compatible with Customer interface
-const sampleCustomers: Customer[] = [
-  {
-    id: '1',
-    gomanageId: 'CUST001',
-    name: 'María García López',
-    businessName: 'Distribuciones García S.L.',
-    vatNumber: 'B12345678',
-    email: 'maria@distribuciones-garcia.es',
-    phone: '+34 666 123 456',
-    city: 'Madrid',
-    province: 'Madrid',
-    syncStatus: 'synced' as const,
-    lastSync: 'hace 10 min',
-    totalOrders: 15,
-    totalAmount: 45300
-  },
-  {
-    id: '2',
-    gomanageId: 'CUST002',
-    name: 'Carlos Rodríguez Sánchez',
-    businessName: 'Comercial Rodríguez',
-    vatNumber: 'B87654321',
-    email: 'carlos@comercial-rodriguez.com',
-    phone: '+34 666 654 321',
-    city: 'Barcelona',
-    province: 'Barcelona',
-    syncStatus: 'pending' as const,
-    lastSync: 'hace 2 horas',
-    totalOrders: 8,
-    totalAmount: 23100
-  },
-  {
-    id: '3',
-    gomanageId: 'CUST003',
-    name: 'Ana Martínez Fernández',
-    businessName: 'Suministros Martínez',
-    vatNumber: 'B11111111',
-    email: 'ana@suministros-martinez.es',
-    phone: '+34 666 789 123',
-    city: 'Valencia',
-    province: 'Valencia',
-    syncStatus: 'synced' as const,
-    lastSync: 'hace 5 min',
-    totalOrders: 22,
-    totalAmount: 67800
-  }
-];
+// NO sample data - force using real data from GO!Manage
 
 export default function Customers() {
   const { fetchCustomers, isLoading } = useGomanage();
-  const [customers, setCustomers] = useState<Customer[]>(sampleCustomers);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCity, setFilterCity] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -69,33 +22,21 @@ export default function Customers() {
   useEffect(() => {
     const loadCustomers = async () => {
       try {
-        console.log('🔄 Cargando clientes desde Gomanage...');
+        console.log('🔄 Cargando clientes reales desde GraphQL...');
         const realCustomers = await fetchCustomers();
-        console.log('📋 Clientes recibidos:', realCustomers);
+        console.log('📋 Clientes GraphQL recibidos:', realCustomers);
+        console.log('📊 Cantidad de clientes:', realCustomers?.length || 0);
         
         if (realCustomers && realCustomers.length > 0) {
-          // Convertir datos de Gomanage al formato esperado
-          const formattedCustomers: Customer[] = realCustomers.map((customer: any, index: number) => ({
-            id: String(index + 1),
-            gomanageId: customer.id || customer.customer_id,
-            name: customer.name || 'Sin nombre',
-            businessName: customer.business_name || 'Sin razón social',
-            vatNumber: customer.vat_number || '',
-            email: customer.email || '',
-            phone: customer.phone || '',
-            city: customer.city || '',
-            province: customer.province || '',
-            syncStatus: 'synced' as const,
-            lastSync: 'hace 1 min',
-            totalOrders: customer.totalOrders || 0,
-            totalAmount: customer.totalAmount || 0
-          }));
-          setCustomers(formattedCustomers);
+          console.log('✅ Usando clientes reales de GO!Manage GraphQL');
+          setCustomers(realCustomers);
         } else {
-          console.warn('⚠️ No se recibieron clientes reales, usando datos de ejemplo');
+          console.warn('⚠️ No se recibieron clientes reales - array vacío');
+          setCustomers([]);
         }
       } catch (error) {
         console.error('❌ Error cargando clientes:', error);
+        setCustomers([]);
       }
     };
 

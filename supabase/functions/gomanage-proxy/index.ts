@@ -102,7 +102,7 @@ serve(async (req) => {
       }
     }
 
-    // 🔄 PROXY - Reenviar peticiones autenticadas con soporte para parámetros
+    // 🔄 PROXY - GraphQL API de GO!Manage
     if (action === 'proxy') {
       console.log(`🔍 Proxy - SessionId recibido: ${sessionId}`)
       console.log(`💾 Sessions en cache: ${Array.from(sessionCache.keys())}`)
@@ -132,20 +132,120 @@ serve(async (req) => {
 
       const sessionData = sessionCache.get(sessionId)!
       const jsessionid = sessionData.jsessionid
-      let targetUrl = `${GOMANAGE_URL}${endpoint || '/gomanage'}`
 
-      // Agregar parámetros para obtener TODOS los registros
-      if (endpoint && endpoint.includes('apitmt-customers/List')) {
-        const urlParams = new URLSearchParams({
-          start: '0',
-          limit: '2000', // Obtener todos los registros (más que los 1,478 conocidos)
-          sort: 'id',
-          dir: 'ASC'
-        })
-        targetUrl += `?${urlParams.toString()}`
-        console.log(`📋 Solicitando TODOS los clientes con parámetros: start=0, limit=2000`)
+      // Si es petición para clientes, usar GraphQL en lugar de REST
+      if (endpoint && endpoint.includes('customers')) {
+        console.log(`📊 Usando GraphQL para obtener clientes...`)
+        
+        const graphqlQuery = {
+          query: `
+            query GetAllCustomers($first: Int!, $offset: Int!) {
+              master_files {
+                customers(
+                  where: { key: { customer_ambit: { equals: 0 } } }
+                  first: $first
+                  offset: $offset
+                  order: { customer_id: ASC }
+                ) {
+                  totalCount
+                  nodes {
+                    customer_id
+                    name
+                    business_name
+                    vat_number
+                    street_name
+                    street_number
+                    postal_code
+                    city
+                    province_id
+                    country_id
+                    unique_id
+                    creation_date
+                    last_modified_date
+                    customer_branches {
+                      company_id
+                      branch_id
+                      email
+                      phone
+                      fax
+                      web
+                      notes
+                    }
+                  }
+                }
+              }
+            }
+          `,
+          variables: {
+            first: 2000,
+            offset: 0
+          }
+        }
+
+        const targetUrl = `${GOMANAGE_URL}/gomanage/web/data/graphql`
+        console.log(`📡 GraphQL request a: ${targetUrl}`)
+        console.log(`🔑 Usando JSESSIONID: ${jsessionid}`)
+
+        try {
+          const gomanageResponse = await fetch(targetUrl, {
+            method: 'POST',
+            headers: {
+              'Cookie': jsessionid,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            },
+            body: JSON.stringify(graphqlQuery)
+          })
+
+          const responseText = await gomanageResponse.text()
+          let jsonData
+
+          try {
+            jsonData = JSON.parse(responseText)
+          } catch {
+            jsonData = { 
+              data: responseText, 
+              raw: true,
+              contentType: gomanageResponse.headers.get('content-type')
+            }
+          }
+
+          console.log(`✅ GraphQL response: ${gomanageResponse.status}`)
+          
+          if (jsonData && jsonData.data && jsonData.data.master_files && jsonData.data.master_files.customers) {
+            const customers = jsonData.data.master_files.customers
+            console.log(`📋 🎉 ÉXITO GraphQL: ${customers.nodes.length} clientes obtenidos`)
+            console.log(`📊 Total count GraphQL: ${customers.totalCount}`)
+            if (customers.nodes.length > 0) {
+              console.log(`📝 Primer cliente GraphQL:`, JSON.stringify(customers.nodes[0]).substring(0, 300))
+            }
+          }
+
+          console.log(`📋 GraphQL Data preview:`, JSON.stringify(jsonData).substring(0, 400))
+
+          return new Response(JSON.stringify({
+            success: gomanageResponse.ok,
+            data: jsonData,
+            timestamp: new Date().toISOString()
+          }), {
+            status: gomanageResponse.status,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          })
+        } catch (error) {
+          console.error('🔥 Error en GraphQL:', error)
+          return new Response(JSON.stringify({
+            success: false,
+            error: `Error de GraphQL: ${error.message}`
+          }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          })
+        }
       }
 
+      // Para otras peticiones, usar el endpoint original
+      const targetUrl = `${GOMANAGE_URL}${endpoint || '/gomanage'}`
       console.log(`📡 Proxy request a: ${targetUrl}`)
       console.log(`🔑 Usando JSESSIONID: ${jsessionid}`)
 
@@ -174,13 +274,6 @@ serve(async (req) => {
         }
 
         console.log(`✅ Proxy response: ${gomanageResponse.status}`)
-        if (jsonData && jsonData.data && Array.isArray(jsonData.data)) {
-          console.log(`📋 🎉 ÉXITO: ${jsonData.data.length} clientes obtenidos`)
-          console.log(`📊 Total count reportado: ${jsonData.totalCount || 'no disponible'}`)
-          if (jsonData.data.length > 0) {
-            console.log(`📝 Primer cliente:`, JSON.stringify(jsonData.data[0]).substring(0, 200))
-          }
-        }
         console.log(`📋 Data preview:`, JSON.stringify(jsonData).substring(0, 300))
 
         return new Response(JSON.stringify({
