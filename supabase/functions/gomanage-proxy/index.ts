@@ -57,13 +57,14 @@ serve(async (req) => {
         const isLoginSuccess = (loginResponse.status === 302 || loginResponse.status === 200) && jsessionid
 
         if (isLoginSuccess) {
-          // Guardar sesión en cache
+          // Guardar sesión en cache con el username como key
           sessionCache.set(username, {
             jsessionid: jsessionid,
             timestamp: Date.now()
           })
           
-          console.log(`✅ Login exitoso para ${username}`)
+          console.log(`✅ Login exitoso para ${username}, guardado en cache`)
+          console.log(`🔍 Cache actual:`, Array.from(sessionCache.keys()))
           
           return new Response(JSON.stringify({ 
             success: true, 
