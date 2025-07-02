@@ -140,17 +140,67 @@ serve(async (req) => {
       }
 
       if (!sessionCache.has(sessionId)) {
-        console.log(`❌ SessionId ${sessionId} no encontrado en cache`)
+        console.log(`❌ SessionId ${sessionId} no encontrado en cache - haciendo login automático`)
         console.log(`💾 Cache actual contiene: ${Array.from(sessionCache.keys())}`)
         
-        return new Response(JSON.stringify({ 
-          success: false,
-          error: 'Sesión no válida o expirada. Haz login primero.',
-          needsReauth: true
-        }), {
-          status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        })
+        // Hacer login automático
+        const loginData = `j_username=${encodeURIComponent(sessionId)}&j_password=${encodeURIComponent('GOtmt%')}`
+        
+        try {
+          const autoLoginResponse = await fetch(`${GOMANAGE_URL}/gomanage/static/auth/j_spring_security_check`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'Accept': 'application/json',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            },
+            body: loginData,
+            redirect: 'manual'
+          })
+
+          const setCookieHeaders = autoLoginResponse.headers.get('set-cookie')
+          let jsessionid = null
+          
+          if (setCookieHeaders) {
+            const sessionMatch = setCookieHeaders.match(/JSESSIONID=([^;]+)/)
+            if (sessionMatch) {
+              jsessionid = `JSESSIONID=${sessionMatch[1]}`
+            }
+          }
+
+          const isAutoLoginSuccess = (autoLoginResponse.status === 302 || autoLoginResponse.status === 200) && jsessionid
+
+          if (isAutoLoginSuccess) {
+            // Guardar sesión en cache
+            const now = Date.now()
+            sessionCache.set(sessionId, {
+              jsessionid: jsessionid,
+              timestamp: now,
+              expires: now + (30 * 60 * 1000)
+            })
+            console.log(`✅ Login automático exitoso para ${sessionId}`)
+          } else {
+            console.log(`❌ Login automático fallido para ${sessionId}`)
+            return new Response(JSON.stringify({ 
+              success: false,
+              error: 'Error de autenticación automática',
+              needsReauth: true
+            }), {
+              status: 401,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            })
+          }
+        } catch (autoLoginError) {
+          console.error('🔥 Error en login automático:', autoLoginError)
+          return new Response(JSON.stringify({ 
+            success: false,
+            error: 'Error de autenticación automática',
+            needsReauth: true
+          }), {
+            status: 401,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          })
+        }
       }
 
       const sessionData = sessionCache.get(sessionId)!
