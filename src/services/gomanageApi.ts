@@ -65,7 +65,7 @@ interface GomanageConnection {
 class GomanageApiService {
   private connection: GomanageConnection = {
     isConnected: false,
-    proxyUrl: 'https://gomanage-proxy.vercel.app/api/gomanage',
+    proxyUrl: 'http://buyled.clonico.es:8181/gomanage/web/data',
     lastPing: null,
     sessionId: null
   };
