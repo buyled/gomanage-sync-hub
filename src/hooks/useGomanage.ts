@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { gomanageApi, type Customer, type Product, type Order, type SyncResult } from '@/services/gomanageApi';
+import { gomanageApi, type Customer, type Product, type Order, type SyncResult } from '@/services/gomanage';
 import { useToast } from '@/hooks/use-toast';
 
 interface UseGomanageReturn {
