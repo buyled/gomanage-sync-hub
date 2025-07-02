@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,11 +6,13 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import SyncStatus from '@/components/SyncStatus';
+import { useGomanage } from '@/hooks/useGomanage';
+import type { Customer } from '@/services/gomanage';
 
-// Sample customers data
-const sampleCustomers = [
+// Sample customers data (fallback) - compatible with Customer interface
+const sampleCustomers: Customer[] = [
   {
-    id: 1,
+    id: '1',
     gomanageId: 'CUST001',
     name: 'María García López',
     businessName: 'Distribuciones García S.L.',
@@ -25,7 +27,7 @@ const sampleCustomers = [
     totalAmount: 45300
   },
   {
-    id: 2,
+    id: '2',
     gomanageId: 'CUST002',
     name: 'Carlos Rodríguez Sánchez',
     businessName: 'Comercial Rodríguez',
@@ -40,7 +42,7 @@ const sampleCustomers = [
     totalAmount: 23100
   },
   {
-    id: 3,
+    id: '3',
     gomanageId: 'CUST003',
     name: 'Ana Martínez Fernández',
     businessName: 'Suministros Martínez',
@@ -53,44 +55,52 @@ const sampleCustomers = [
     lastSync: 'hace 5 min',
     totalOrders: 22,
     totalAmount: 67800
-  },
-  {
-    id: 4,
-    gomanageId: null,
-    name: 'Juan López Pérez',
-    businessName: 'Almacenes López',
-    vatNumber: 'B22222222',
-    email: 'juan@almacenes-lopez.com',
-    phone: '+34 666 456 789',
-    city: 'Sevilla',
-    province: 'Sevilla',
-    syncStatus: 'never' as const,
-    lastSync: undefined,
-    totalOrders: 0,
-    totalAmount: 0
-  },
-  {
-    id: 5,
-    gomanageId: 'CUST005',
-    name: 'Elena Gómez Torres',
-    businessName: 'Distribuidora El Sol',
-    vatNumber: 'B33333333',
-    email: 'elena@distribuidora-elsol.es',
-    phone: '+34 666 321 654',
-    city: 'Bilbao',
-    province: 'Vizcaya',
-    syncStatus: 'error' as const,
-    lastSync: 'hace 1 día',
-    totalOrders: 12,
-    totalAmount: 34500
   }
 ];
 
 export default function Customers() {
-  const [customers] = useState(sampleCustomers);
+  const { fetchCustomers, isLoading } = useGomanage();
+  const [customers, setCustomers] = useState<Customer[]>(sampleCustomers);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCity, setFilterCity] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
+
+  // Cargar clientes reales al montar el componente
+  useEffect(() => {
+    const loadCustomers = async () => {
+      try {
+        console.log('🔄 Cargando clientes desde Gomanage...');
+        const realCustomers = await fetchCustomers();
+        console.log('📋 Clientes recibidos:', realCustomers);
+        
+        if (realCustomers && realCustomers.length > 0) {
+          // Convertir datos de Gomanage al formato esperado
+          const formattedCustomers: Customer[] = realCustomers.map((customer: any, index: number) => ({
+            id: String(index + 1),
+            gomanageId: customer.id || customer.customer_id,
+            name: customer.name || 'Sin nombre',
+            businessName: customer.business_name || 'Sin razón social',
+            vatNumber: customer.vat_number || '',
+            email: customer.email || '',
+            phone: customer.phone || '',
+            city: customer.city || '',
+            province: customer.province || '',
+            syncStatus: 'synced' as const,
+            lastSync: 'hace 1 min',
+            totalOrders: customer.totalOrders || 0,
+            totalAmount: customer.totalAmount || 0
+          }));
+          setCustomers(formattedCustomers);
+        } else {
+          console.warn('⚠️ No se recibieron clientes reales, usando datos de ejemplo');
+        }
+      } catch (error) {
+        console.error('❌ Error cargando clientes:', error);
+      }
+    };
+
+    loadCustomers();
+  }, [fetchCustomers]);
 
   const filteredCustomers = customers.filter(customer => {
     const matchesSearch = customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
