@@ -198,14 +198,10 @@ export function useGomanage(): UseGomanageReturn {
     // Verificar estado inicial
     updateConnectionStatus();
     
-    // Auto-conectar solo una vez
-    const timer = setTimeout(() => {
-      if (!isConnected && !isConnecting.current) {
-        connect();
-      }
-    }, 1000);
-
-    return () => clearTimeout(timer);
+    // Auto-conectar solo una vez al inicializar
+    if (!isConnected && !isConnecting.current) {
+      connect();
+    }
   }, []);
 
   return {

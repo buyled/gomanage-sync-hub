@@ -76,9 +76,9 @@ export default function Dashboard() {
 
         if (!isMounted) return;
 
-        const customersData = customers.status === 'fulfilled' ? customers.value : [];
-        const productsData = products.status === 'fulfilled' ? products.value : [];
-        const ordersData = orders.status === 'fulfilled' ? orders.value : [];
+        const customersData = customers.status === 'fulfilled' ? (customers.value as any[]) : [];
+        const productsData = products.status === 'fulfilled' ? (products.value as any[]) : [];
+        const ordersData = orders.status === 'fulfilled' ? (orders.value as any[]) : [];
 
         // Calcular estadísticas
         const currentMonth = new Date().getMonth();
@@ -138,7 +138,7 @@ export default function Dashboard() {
     return () => {
       isMounted = false;
     };
-  }, [gomanage.isConnected, gomanage.isLoading]); // Solo depende del estado de conexión
+  }, [gomanage.isConnected]); // Solo cuando cambie el estado de conexión
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-ES', {
