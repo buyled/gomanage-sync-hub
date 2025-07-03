@@ -48,39 +48,67 @@ export function useGomanage(): UseGomanageReturn {
       sessionId: status.sessionId,
       lastPing: status.lastPing
     });
+    
+    console.log('🔄 Estado de conexión actualizado:', {
+      isConnected: status.isConnected,
+      sessionId: status.sessionId ? 'PRESENTE' : 'AUSENTE',
+      lastPing: status.lastPing
+    });
   }, []);
 
   // Conectar a Gomanage
   const connect = useCallback(async () => {
+    console.log('🔌 Iniciando proceso de conexión...');
     setIsLoading(true);
     setError(null);
     
     try {
-      // Probar conexión
+      // Probar conexión primero
+      console.log('🔍 Probando conexión...');
       const connectionResult = await gomanageApi.testConnection();
+      console.log('📡 Resultado de conexión:', connectionResult);
       
       if (connectionResult.connected) {
         // Hacer login
+        console.log('🔑 Intentando login...');
         const loginResult = await gomanageApi.login();
+        console.log('🔐 Resultado de login:', loginResult);
         
         if (loginResult.success) {
           // Esperar un momento para que la sesión se propague
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise(resolve => setTimeout(resolve, 1000));
           
           updateConnectionStatus();
-          toast({
-            title: "Conexión exitosa",
-            description: "Conectado a GO!Manage con datos actualizados",
-          });
+          
+          // Verificar que realmente tenemos datos
+          console.log('📊 Verificando datos disponibles...');
+          try {
+            const customers = await gomanageApi.getCustomers();
+            console.log(`✅ Verificación exitosa: ${customers.length} clientes disponibles`);
+            
+            toast({
+              title: "Conexión exitosa",
+              description: `Conectado a GO!Manage - ${customers.length} clientes disponibles`,
+            });
+          } catch (dataError) {
+            console.warn('⚠️ Conexión establecida pero error obteniendo datos:', dataError);
+            toast({
+              title: "Conexión parcial",
+              description: "Conectado pero algunos datos no están disponibles",
+              variant: "destructive",
+            });
+          }
         } else {
-          throw new Error('Error en login');
+          throw new Error(loginResult.message || 'Error en login');
         }
       } else {
-        throw new Error(connectionResult.message);
+        throw new Error(connectionResult.message || 'Error de conexión');
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Error de conexión';
+      console.error('❌ Error en conexión:', errorMsg);
       setError(errorMsg);
+      setIsConnected(false);
       toast({
         title: "Error de conexión",
         description: errorMsg,
@@ -93,8 +121,10 @@ export function useGomanage(): UseGomanageReturn {
 
   // Desconectar
   const disconnect = useCallback(() => {
+    console.log('🔌 Desconectando...');
     gomanageApi.logout();
     setIsConnected(false);
+    setError(null);
     setConnectionInfo({
       proxyUrl: '',
       sessionId: null,
@@ -108,9 +138,13 @@ export function useGomanage(): UseGomanageReturn {
 
   // Test de conexión
   const testConnection = useCallback(async () => {
+    console.log('🧪 Ejecutando test de conexión...');
     setIsLoading(true);
+    setError(null);
+    
     try {
       const result = await gomanageApi.testConnection();
+      console.log('🧪 Resultado del test:', result);
       updateConnectionStatus();
       
       toast({
@@ -119,7 +153,14 @@ export function useGomanage(): UseGomanageReturn {
         variant: result.connected ? "default" : "destructive",
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error de prueba');
+      const errorMsg = err instanceof Error ? err.message : 'Error de prueba';
+      console.error('❌ Error en test:', errorMsg);
+      setError(errorMsg);
+      toast({
+        title: "Error en test",
+        description: errorMsg,
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -127,11 +168,14 @@ export function useGomanage(): UseGomanageReturn {
 
   // Obtener clientes
   const fetchCustomers = useCallback(async (): Promise<Customer[]> => {
+    console.log('👥 Obteniendo clientes...');
     try {
       const customers = await gomanageApi.getCustomers();
+      console.log(`✅ ${customers.length} clientes obtenidos`);
       return customers;
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Error al obtener clientes';
+      console.error('❌ Error obteniendo clientes:', errorMsg);
       setError(errorMsg);
       toast({
         title: "Error",
@@ -144,11 +188,14 @@ export function useGomanage(): UseGomanageReturn {
 
   // Obtener productos
   const fetchProducts = useCallback(async (): Promise<Product[]> => {
+    console.log('📦 Obteniendo productos...');
     try {
       const products = await gomanageApi.getProducts();
+      console.log(`✅ ${products.length} productos obtenidos`);
       return products;
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Error al obtener productos';
+      console.error('❌ Error obteniendo productos:', errorMsg);
       setError(errorMsg);
       toast({
         title: "Error",
@@ -161,11 +208,14 @@ export function useGomanage(): UseGomanageReturn {
 
   // Obtener pedidos
   const fetchOrders = useCallback(async (): Promise<Order[]> => {
+    console.log('📋 Obteniendo pedidos...');
     try {
       const orders = await gomanageApi.getOrders();
+      console.log(`✅ ${orders.length} pedidos obtenidos`);
       return orders;
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Error al obtener pedidos';
+      console.error('❌ Error obteniendo pedidos:', errorMsg);
       setError(errorMsg);
       toast({
         title: "Error",
@@ -181,6 +231,7 @@ export function useGomanage(): UseGomanageReturn {
     entityType: 'customers' | 'products' | 'orders', 
     operation: 'pull' | 'push' = 'pull'
   ): Promise<SyncResult> => {
+    console.log(`🔄 Sincronizando ${entityType} (${operation})...`);
     try {
       const result = await gomanageApi.syncEntity(entityType, operation);
       
@@ -195,6 +246,7 @@ export function useGomanage(): UseGomanageReturn {
       return result;
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Error de sincronización';
+      console.error('❌ Error en sincronización:', errorMsg);
       toast({
         title: "Error de sincronización",
         description: errorMsg,
@@ -212,10 +264,21 @@ export function useGomanage(): UseGomanageReturn {
     }
   }, [toast]);
 
-  // Auto-conectar al montar
+  // Auto-conectar al montar y verificar estado inicial
   useEffect(() => {
-    connect();
-  }, [connect]);
+    console.log('🚀 useGomanage: Inicializando...');
+    
+    // Verificar estado inicial
+    updateConnectionStatus();
+    
+    // Intentar conectar automáticamente
+    const autoConnect = async () => {
+      console.log('🔄 Auto-conectando...');
+      await connect();
+    };
+    
+    autoConnect();
+  }, [connect, updateConnectionStatus]);
 
   return {
     // Estados

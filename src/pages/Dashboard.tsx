@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import SyncStatus from '@/components/SyncStatus';
+import { useGomanage } from '@/hooks/useGomanage';
 import {
   LineChart,
   Line,
@@ -38,32 +39,126 @@ const quickActions = [
 ];
 
 export default function Dashboard() {
+  const gomanage = useGomanage();
   const [stats, setStats] = useState({
     totalCustomers: 0,
     totalProducts: 0,
     monthlyOrders: 0,
-    monthlySales: 0
+    monthlySales: 0,
+    isLoading: true
   });
 
+  // Cargar datos reales de la API
   useEffect(() => {
-    // Simulate loading stats
-    const timer = setTimeout(() => {
-      setStats({
-        totalCustomers: 247,
-        totalProducts: 1853,
-        monthlyOrders: 64,
-        monthlySales: 67000
-      });
-    }, 1000);
+    const loadRealData = async () => {
+      console.log('📊 Dashboard: Cargando datos reales de la API...');
+      
+      try {
+        setStats(prev => ({ ...prev, isLoading: true }));
 
-    return () => clearTimeout(timer);
-  }, []);
+        // Obtener datos reales en paralelo
+        const [customers, products, orders] = await Promise.all([
+          gomanage.fetchCustomers().catch(err => {
+            console.error('Error obteniendo clientes:', err);
+            return [];
+          }),
+          gomanage.fetchProducts().catch(err => {
+            console.error('Error obteniendo productos:', err);
+            return [];
+          }),
+          gomanage.fetchOrders().catch(err => {
+            console.error('Error obteniendo pedidos:', err);
+            return [];
+          })
+        ]);
+
+        console.log(`📊 Datos reales obtenidos:`, {
+          customers: customers.length,
+          products: products.length,
+          orders: orders.length
+        });
+
+        // Calcular estadísticas reales
+        const currentMonth = new Date().getMonth();
+        const currentYear = new Date().getFullYear();
+        
+        const monthlyOrders = orders.filter(order => {
+          const orderDate = new Date(order.date);
+          return orderDate.getMonth() === currentMonth && orderDate.getFullYear() === currentYear;
+        });
+
+        const monthlySales = monthlyOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+
+        setStats({
+          totalCustomers: customers.length,
+          totalProducts: products.length,
+          monthlyOrders: monthlyOrders.length,
+          monthlySales: monthlySales,
+          isLoading: false
+        });
+
+        console.log(`✅ Dashboard actualizado con datos reales:`, {
+          totalCustomers: customers.length,
+          totalProducts: products.length,
+          monthlyOrders: monthlyOrders.length,
+          monthlySales: monthlySales
+        });
+
+      } catch (error) {
+        console.error('❌ Error cargando datos del dashboard:', error);
+        
+        // En caso de error, mostrar datos por defecto pero indicar el problema
+        setStats({
+          totalCustomers: 0,
+          totalProducts: 0,
+          monthlyOrders: 0,
+          monthlySales: 0,
+          isLoading: false
+        });
+      }
+    };
+
+    // Cargar datos cuando el componente se monte o cuando cambie el estado de conexión
+    if (gomanage.isConnected) {
+      loadRealData();
+    } else {
+      // Si no está conectado, intentar conectar primero
+      console.log('📊 Dashboard: No conectado, intentando conectar...');
+      setStats(prev => ({ ...prev, isLoading: true }));
+    }
+  }, [gomanage.isConnected, gomanage.fetchCustomers, gomanage.fetchProducts, gomanage.fetchOrders]);
+
+  // Recargar datos cuando se conecte
+  useEffect(() => {
+    if (gomanage.isConnected && stats.isLoading) {
+      console.log('📊 Dashboard: Conexión establecida, recargando datos...');
+      // Trigger reload by changing a dependency
+      const timer = setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [gomanage.isConnected, stats.isLoading]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-ES', {
       style: 'currency',
       currency: 'EUR'
     }).format(amount);
+  };
+
+  const getConnectionStatus = () => {
+    if (gomanage.isLoading) return 'Conectando...';
+    if (gomanage.error) return 'Error de conexión';
+    if (gomanage.isConnected) return 'Conectado';
+    return 'Desconectado';
+  };
+
+  const getConnectionStatusType = (): 'synced' | 'pending' | 'error' | 'never' => {
+    if (gomanage.isLoading) return 'pending';
+    if (gomanage.error) return 'error';
+    if (gomanage.isConnected) return 'synced';
+    return 'never';
   };
 
   return (
@@ -76,10 +171,38 @@ export default function Dashboard() {
             Resumen de tu negocio en tiempo real
           </p>
         </div>
-        <div className="mt-4 lg:mt-0">
-          <SyncStatus status="synced" lastSync="Hace 5 min" />
+        <div className="mt-4 lg:mt-0 flex items-center space-x-4">
+          <SyncStatus 
+            status={getConnectionStatusType()} 
+            lastSync={gomanage.connectionInfo.lastPing ? 'Hace 1 min' : undefined}
+          />
+          {gomanage.error && (
+            <Button 
+              onClick={gomanage.connect}
+              variant="outline"
+              size="sm"
+              disabled={gomanage.isLoading}
+            >
+              🔄 Reconectar
+            </Button>
+          )}
         </div>
       </div>
+
+      {/* Connection Alert */}
+      {gomanage.error && (
+        <Card className="border-destructive bg-destructive/10">
+          <CardContent className="pt-6">
+            <div className="flex items-center space-x-2">
+              <span className="text-destructive">⚠️</span>
+              <div>
+                <div className="font-medium text-destructive">Error de conexión con Gomanage</div>
+                <div className="text-sm text-muted-foreground">{gomanage.error}</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -92,10 +215,14 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">
-              {stats.totalCustomers.toLocaleString()}
+              {stats.isLoading ? (
+                <div className="animate-pulse bg-muted h-8 w-16 rounded"></div>
+              ) : (
+                stats.totalCustomers.toLocaleString()
+              )}
             </div>
-            <p className="text-xs text-success mt-1">
-              +12% desde el mes pasado
+            <p className="text-xs text-muted-foreground mt-1">
+              {gomanage.isConnected ? 'Datos reales de Gomanage' : 'Esperando conexión...'}
             </p>
           </CardContent>
         </Card>
@@ -109,10 +236,14 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">
-              {stats.totalProducts.toLocaleString()}
+              {stats.isLoading ? (
+                <div className="animate-pulse bg-muted h-8 w-16 rounded"></div>
+              ) : (
+                stats.totalProducts.toLocaleString()
+              )}
             </div>
-            <p className="text-xs text-success mt-1">
-              +5% catálogo activo
+            <p className="text-xs text-muted-foreground mt-1">
+              {gomanage.isConnected ? 'Catálogo sincronizado' : 'Esperando sincronización...'}
             </p>
           </CardContent>
         </Card>
@@ -126,10 +257,14 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">
-              {stats.monthlyOrders}
+              {stats.isLoading ? (
+                <div className="animate-pulse bg-muted h-8 w-16 rounded"></div>
+              ) : (
+                stats.monthlyOrders
+              )}
             </div>
-            <p className="text-xs text-warning mt-1">
-              3 pendientes de envío
+            <p className="text-xs text-muted-foreground mt-1">
+              {gomanage.isConnected ? 'Mes actual' : 'Datos no disponibles'}
             </p>
           </CardContent>
         </Card>
@@ -143,10 +278,14 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">
-              {formatCurrency(stats.monthlySales)}
+              {stats.isLoading ? (
+                <div className="animate-pulse bg-muted h-8 w-20 rounded"></div>
+              ) : (
+                formatCurrency(stats.monthlySales)
+              )}
             </div>
-            <p className="text-xs text-success mt-1">
-              +18% vs mes anterior
+            <p className="text-xs text-muted-foreground mt-1">
+              {gomanage.isConnected ? 'Facturación real' : 'Esperando datos...'}
             </p>
           </CardContent>
         </Card>
