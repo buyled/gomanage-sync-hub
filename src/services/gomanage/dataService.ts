@@ -6,15 +6,58 @@ import type { GomanageConnectionService } from './connection';
 export class GomanageDataService {
   constructor(private connectionService: GomanageConnectionService) {}
 
-  // 👥 Obtener clientes usando GraphQL
+  // 👥 Obtener clientes usando GraphQL según documentación oficial
   async getCustomers(): Promise<Customer[]> {
     try {
       console.log('🔍 Obteniendo clientes con GraphQL...');
-      const data = await this.connectionService.proxyRequest('/gomanage/web/data/apitmt-customers/List');
       
-      if (data && data.data && data.data.master_files && data.data.master_files.customers) {
-        const customers = data.data.master_files.customers.nodes || [];
-        const totalCount = data.data.master_files.customers.totalCount || 0;
+      // Query GraphQL según la documentación oficial
+      const graphqlQuery = {
+        query: `
+          query GetCustomers($first: Int, $offset: Int) {
+            master_files {
+              customers(
+                where: { key: { customer_ambit: { equals: 0 } } }
+                first: $first
+                offset: $offset
+                order: { customer_id: ASC }
+              ) {
+                totalCount
+                nodes {
+                  customer_id
+                  customer_ambit
+                  name
+                  business_name
+                  vat_number
+                  email
+                  phone
+                  address
+                  city
+                  postal_code
+                  country
+                  customer_branches {
+                    branch_id
+                    email
+                    phone
+                    address
+                    city
+                  }
+                }
+              }
+            }
+          }
+        `,
+        variables: {
+          first: 100,
+          offset: 0
+        }
+      };
+
+      const data = await this.connectionService.proxyRequest('/gomanage/web/data/graphql');
+      
+      if (data && data.master_files && data.master_files.customers) {
+        const customers = data.master_files.customers.nodes || [];
+        const totalCount = data.master_files.customers.totalCount || 0;
         
         console.log(`👥 ✅ ${customers.length} clientes obtenidos de ${totalCount} totales`);
         
@@ -29,10 +72,10 @@ export class GomanageDataService {
             name: customer.name || 'Sin nombre',
             businessName: customer.business_name || 'Sin razón social',
             vatNumber: customer.vat_number || '',
-            email: branch.email || '',
-            phone: branch.phone || '',
-            city: customer.city || '',
-            province: customer.province_id ? `Provincia ${customer.province_id}` : '',
+            email: customer.email || branch.email || '',
+            phone: customer.phone || branch.phone || '',
+            city: customer.city || branch.city || '',
+            province: customer.country || '',
             syncStatus: 'synced' as const,
             lastSync: 'hace 1 min',
             totalOrders: 0,

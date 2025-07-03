@@ -5,7 +5,7 @@ import type { GomanageConnection, LoginResult, ConnectionResult } from './types'
 export class GomanageConnectionService {
   private connection: GomanageConnection = {
     isConnected: false,
-    proxyUrl: 'https://ddtbazuwvzshjahjpyek.supabase.co/functions/v1/gomanage-proxy',
+    proxyUrl: '/api/gomanage',
     lastPing: null,
     sessionId: null
   };
@@ -66,78 +66,69 @@ export class GomanageConnectionService {
     }
   }
 
-  // 🔐 Login mejorado con reintentos
+  // 🔐 Login PASOE según documentación oficial
   async login(username: string = 'distri', password: string = 'GOtmt%'): Promise<LoginResult> {
-    console.log('🔑 Intentando login mejorado:', username);
+    console.log('🔑 Intentando login PASOE:', username);
     
-    const maxRetries = 3;
-    let lastError: Error | null = null;
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        console.log(`🔄 Intento de login ${attempt}/${maxRetries}`);
+      // Preparar datos del formulario para PASOE
+      const formData = new URLSearchParams();
+      formData.append('username', username);
+      formData.append('password', password);
+
+      const response = await fetch(
+        `${this.connection.proxyUrl}/gomanage/static/auth/j_spring_security_check`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json',
+          },
+          body: formData,
+          signal: controller.signal
+        }
+      );
+
+      clearTimeout(timeoutId);
+      console.log('📄 Respuesta login PASOE:', response.status);
+      
+      if (response.ok) {
+        // Para PASOE, verificar si tenemos cookies de sesión
+        const cookies = response.headers.get('set-cookie');
         
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
-
-        const response = await fetch(
-          `${this.connection.proxyUrl}?action=login&sessionId=${encodeURIComponent(username)}`,
-          {
-            method: 'GET',
-            headers: {
-              'Accept': 'application/json',
-            },
-            signal: controller.signal
-          }
-        );
-
-        clearTimeout(timeoutId);
-        console.log(`📄 Respuesta login intento ${attempt}:`, response.status);
-        
-        if (response.ok) {
-          const data = await response.json();
+        if (cookies && (cookies.includes('JSESSIONID') || cookies.includes('SPRING_SECURITY'))) {
+          this.connection.sessionId = username;
+          this.connection.isConnected = true;
+          this.connection.lastPing = new Date();
           
-          if (data.success) {
-            this.connection.sessionId = username; // Usar username como sessionId
-            this.connection.isConnected = true;
-            this.connection.lastPing = new Date();
-            
-            console.log('✅ Login exitoso en intento', attempt);
-            
-            return { 
-              success: true, 
-              sessionId: username, 
-              message: data.message || 'Login exitoso'
-            };
-          } else {
-            throw new Error(data.error || 'Login falló');
-          }
+          console.log('✅ Login PASOE exitoso');
+          
+          return { 
+            success: true, 
+            sessionId: username, 
+            message: 'Login PASOE exitoso'
+          };
         } else {
-          const errorData = await response.json().catch(() => ({ error: 'Error de respuesta' }));
-          throw new Error(errorData.error || `HTTP ${response.status}`);
+          throw new Error('No se recibieron cookies de sesión');
         }
-      } catch (error) {
-        lastError = error instanceof Error ? error : new Error('Error desconocido');
-        console.error(`❌ Error en intento ${attempt}:`, lastError.message);
-        
-        // Esperar antes del siguiente intento (excepto en el último)
-        if (attempt < maxRetries) {
-          const delay = 1000 * attempt; // Incrementar delay
-          console.log(`⏳ Esperando ${delay}ms antes del siguiente intento...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-        }
+      } else if (response.status === 401) {
+        throw new Error('Credenciales inválidas');
+      } else {
+        throw new Error(`Error HTTP ${response.status}: ${response.statusText}`);
       }
+    } catch (error) {
+      console.error('❌ Error en login PASOE:', error);
+      this.connection.sessionId = null;
+      this.connection.isConnected = false;
+      
+      return { 
+        success: false, 
+        message: error instanceof Error ? error.message : 'Error desconocido'
+      };
     }
-
-    // Todos los intentos fallaron
-    console.error('❌ Todos los intentos de login fallaron');
-    this.connection.sessionId = null;
-    this.connection.isConnected = false;
-    
-    return { 
-      success: false, 
-      message: `Login falló después de ${maxRetries} intentos: ${lastError?.message || 'Error desconocido'}` 
-    };
   }
 
   // 📊 Hacer petición a través del proxy mejorado
