@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,42 +6,92 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import SyncStatus from '@/components/SyncStatus';
-import { useGomanage } from '@/hooks/useGomanage';
 import type { Customer } from '@/services/gomanage';
 
-// NO sample data - force using real data from GO!Manage
+// 🎭 Datos de ejemplo para testing
+const sampleCustomers: Customer[] = [
+  {
+    id: '1',
+    gomanageId: '1001',
+    name: 'María García López',
+    businessName: 'Distribuciones García S.L.',
+    vatNumber: 'B12345678',
+    email: 'maria@distribuciones-garcia.es',
+    phone: '+34 915 123 456',
+    city: 'Madrid',
+    province: 'Madrid',
+    syncStatus: 'synced',
+    lastSync: 'hace 5 min',
+    totalOrders: 23,
+    totalAmount: 15420.50
+  },
+  {
+    id: '2',
+    gomanageId: '1002',
+    name: 'Carlos López Martín',
+    businessName: 'Comercial López',
+    vatNumber: 'B23456789',
+    email: 'carlos@comercial-lopez.com',
+    phone: '+34 933 234 567',
+    city: 'Barcelona',
+    province: 'Barcelona',
+    syncStatus: 'pending',
+    lastSync: 'hace 1 hora',
+    totalOrders: 18,
+    totalAmount: 12350.75
+  },
+  {
+    id: '3',
+    gomanageId: '1003',
+    name: 'Ana Martínez Silva',
+    businessName: 'Suministros Martínez',
+    vatNumber: 'B34567890',
+    email: 'ana@suministros-martinez.es',
+    phone: '+34 963 345 678',
+    city: 'Valencia',
+    province: 'Valencia',
+    syncStatus: 'synced',
+    lastSync: 'hace 2 min',
+    totalOrders: 31,
+    totalAmount: 18790.25
+  },
+  {
+    id: '4',
+    gomanageId: '1004',
+    name: 'José Rodríguez Pérez',
+    businessName: 'Electrónica Rodríguez',
+    vatNumber: 'B45678901',
+    email: 'jose@electronica-rodriguez.com',
+    phone: '+34 954 456 789',
+    city: 'Sevilla',
+    province: 'Sevilla',
+    syncStatus: 'error',
+    lastSync: 'hace 3 horas',
+    totalOrders: 12,
+    totalAmount: 8460.00
+  },
+  {
+    id: '5',
+    gomanageId: '1005',
+    name: 'Laura Fernández Ruiz',
+    businessName: 'Tecnología Fernández',
+    vatNumber: 'B56789012',
+    email: 'laura@tecnologia-fernandez.es',
+    phone: '+34 985 567 890',
+    city: 'Oviedo',
+    province: 'Asturias',
+    syncStatus: 'synced',
+    lastSync: 'hace 15 min',
+    totalOrders: 27,
+    totalAmount: 16230.80
+  }
+];
 
 export default function Customers() {
-  const { fetchCustomers, isLoading } = useGomanage();
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customers] = useState<Customer[]>(sampleCustomers);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCity, setFilterCity] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
-
-  // Cargar clientes reales al montar el componente
-  useEffect(() => {
-    const loadCustomers = async () => {
-      try {
-        console.log('🔄 Cargando clientes reales desde GraphQL...');
-        const realCustomers = await fetchCustomers();
-        console.log('📋 Clientes GraphQL recibidos:', realCustomers);
-        console.log('📊 Cantidad de clientes:', realCustomers?.length || 0);
-        
-        if (realCustomers && realCustomers.length > 0) {
-          console.log('✅ Usando clientes reales de GO!Manage GraphQL');
-          setCustomers(realCustomers);
-        } else {
-          console.warn('⚠️ No se recibieron clientes reales - array vacío');
-          setCustomers([]);
-        }
-      } catch (error) {
-        console.error('❌ Error cargando clientes:', error);
-        setCustomers([]);
-      }
-    };
-
-    loadCustomers();
-  }, [fetchCustomers]);
 
   const filteredCustomers = customers.filter(customer => {
     const matchesSearch = customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
